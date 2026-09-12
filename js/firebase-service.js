@@ -220,11 +220,18 @@ const FirebaseService = (() => {
   // ---------------------------------------------------------------------
 
   // Devuelve el turno abierto de este dueño, o null si no hay ninguno.
+  // Ojo: pedimos SOLO por duenioId (un único filtro) y filtramos "abierto"
+  // acá en JS, en vez de combinar dos where() en la consulta — Firestore
+  // a veces rechaza con "permisos insuficientes" consultas con más de un
+  // filtro de igualdad combinado, aunque la regla en sí sea correcta,
+  // porque no siempre puede demostrar de antemano que es segura. Con un
+  // solo filtro no hay ambigüedad posible.
   async function getTurnoAbierto(duenioId) {
-    const snap = await db.collection('turnosKiosco')
-      .where('duenioId', '==', duenioId).where('abierto', '==', true).limit(1).get();
-    if (snap.empty) return null;
-    return { id: snap.docs[0].id, ...snap.docs[0].data() };
+    const snap = await db.collection('turnosKiosco').where('duenioId', '==', duenioId).get();
+    const abiertos = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(t => t.abierto === true);
+    if (!abiertos.length) return null;
+    abiertos.sort((a, b) => (b.horaApertura || '').localeCompare(a.horaApertura || ''));
+    return abiertos[0];
   }
 
   async function abrirTurno({ duenioId, empleadoId, empleadoNombre, fondoInicial }) {
