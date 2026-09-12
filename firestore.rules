@@ -1,0 +1,117 @@
+rules_version = '2';
+
+// ============================================================================
+// Reglas de seguridad — proyecto "becker-kioscos"
+// Modelo de DOS roles: superadmin (Becker) / dueño (cada kiosco cliente)
+//
+// No hay rol "empleado" en Authentication a propósito: el personal que
+// rota por turno se identifica dentro de la app con un PIN corto (ver
+// colección empleadosKiosco), pero quien escribe en Firestore siempre es
+// la sesión autenticada del DUEÑO — el PIN es una etiqueta de "quién hizo
+// esta venta/turno" a nivel de la app, no un permiso de Firestore. Ver
+// README.md para más detalle de por qué se decidió así.
+// ============================================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------
+    // FUNCIONES AUXILIARES
+    // ------------------------------------------------------------------
+    function esSuperadmin() {
+      return request.auth != null &&
+             request.auth.token.email.lower() == 'beckerlastrelaureano@gmail.com';
+    }
+
+    function estoyAutenticado() {
+      return request.auth != null;
+    }
+
+    // ¿El documento le pertenece al dueño autenticado? (o no existe todavía,
+    // caso de una consulta a un documento que no fue creado — no lo tratamos
+    // como error de permisos)
+    function esMio(duenioId) {
+      return estoyAutenticado() && duenioId == request.auth.uid;
+    }
+
+    // ------------------------------------------------------------------
+    // usuariosKiosco/{uid}   → { rol: 'superadmin'|'dueño', nombreNegocio,
+    //                             email, activo, fechaAlta }
+    // ------------------------------------------------------------------
+    match /usuariosKiosco/{uid} {
+
+      allow read: if esSuperadmin() || (estoyAutenticado() && request.auth.uid == uid);
+
+      // Alta de la ficha: pasa UNA sola vez, justo después del primer login
+      // (la cuenta de Authentication la creó Becker a mano en la consola).
+      // Nadie puede autoasignarse "superadmin" salvo el propio email de
+      // Becker — cualquier otra cuenta nueva se convierte en "dueño".
+      allow create: if estoyAutenticado() && request.auth.uid == uid &&
+                    ((esSuperadmin() && request.resource.data.rol == 'superadmin')
+                     || (!esSuperadmin() && request.resource.data.rol == 'dueño'));
+
+      // El campo "activo" (para que Becker pueda suspender a un cliente que
+      // no pagó) y el "rol" SOLO los toca el superadmin. El dueño puede
+      // editar el resto de su propia ficha (nombreNegocio, etc.).
+      allow update: if esSuperadmin()
+                    || (estoyAutenticado() && request.auth.uid == uid
+                        && !('activo' in request.resource.data.diff(resource.data).affectedKeys())
+                        && !('rol' in request.resource.data.diff(resource.data).affectedKeys()));
+
+      allow delete: if esSuperadmin();
+    }
+
+    // ------------------------------------------------------------------
+    // productosKiosco/{id}  → { duenioId, codigoBarras, nombre, categoria,
+    //                            precioCosto, precioVenta, stock,
+    //                            stockMinimo, activo, actualizado }
+    // ------------------------------------------------------------------
+    match /productosKiosco/{id} {
+      allow read: if esSuperadmin() || esMio(resource.data.duenioId);
+      allow create: if esSuperadmin() || esMio(request.resource.data.duenioId);
+      allow update: if esSuperadmin()
+                    || (esMio(resource.data.duenioId)
+                        && !('duenioId' in request.resource.data.diff(resource.data).affectedKeys()));
+      allow delete: if esSuperadmin() || esMio(resource.data.duenioId);
+    }
+
+    // ------------------------------------------------------------------
+    // empleadosKiosco/{id}  → { duenioId, nombre, pin, activo }
+    // ------------------------------------------------------------------
+    match /empleadosKiosco/{id} {
+      allow read: if esSuperadmin() || esMio(resource.data.duenioId);
+      allow create: if esSuperadmin() || esMio(request.resource.data.duenioId);
+      allow update: if esSuperadmin()
+                    || (esMio(resource.data.duenioId)
+                        && !('duenioId' in request.resource.data.diff(resource.data).affectedKeys()));
+      allow delete: if esSuperadmin() || esMio(resource.data.duenioId);
+    }
+
+    // ------------------------------------------------------------------
+    // turnosKiosco/{id}     → { duenioId, empleadoId, empleadoNombre,
+    //                            horaApertura, horaCierre, fondoInicial,
+    //                            fondoFinalContado, totalEfectivo,
+    //                            totalOtros, diferencia, abierto }
+    // ------------------------------------------------------------------
+    match /turnosKiosco/{id} {
+      allow read: if esSuperadmin() || esMio(resource.data.duenioId);
+      allow create: if esSuperadmin() || esMio(request.resource.data.duenioId);
+      allow update: if esSuperadmin()
+                    || (esMio(resource.data.duenioId)
+                        && !('duenioId' in request.resource.data.diff(resource.data).affectedKeys()));
+      allow delete: if esSuperadmin() || esMio(resource.data.duenioId);
+    }
+
+    // ------------------------------------------------------------------
+    // ventasKiosco/{id}     → { duenioId, turnoId, empleadoId,
+    //                            empleadoNombre, fecha, items, total,
+    //                            metodoPago }
+    // Las ventas no se editan una vez creadas (solo se podrían anular con
+    // un flag "anulada" a futuro) — por ahora alcanza con create/read/delete.
+    // ------------------------------------------------------------------
+    match /ventasKiosco/{id} {
+      allow read: if esSuperadmin() || esMio(resource.data.duenioId);
+      allow create: if esSuperadmin() || esMio(request.resource.data.duenioId);
+      allow delete: if esSuperadmin() || esMio(resource.data.duenioId);
+    }
+  }
+}
