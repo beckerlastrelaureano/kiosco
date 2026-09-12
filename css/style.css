@@ -261,6 +261,9 @@ button, input, select, textarea { font-family: inherit; color: inherit; }
 .auth-titulo { font-family: var(--fuente-display); font-size: 1.3rem; margin-bottom: .2rem; }
 .auth-titulo strong { color: var(--color-acento-claro); }
 .auth-subtitulo { margin-bottom: 1.4rem; font-size: .85rem; }
+.auth-tabs { display: flex; border: 1px solid var(--color-borde); border-radius: var(--radio-sm); overflow: hidden; margin-bottom: 1.4rem; }
+.auth-tab { flex: 1; padding: .6rem; background: transparent; border: none; color: var(--color-texto-suave); font-weight: 600; font-size: .85rem; cursor: pointer; }
+.auth-tab-activo { background: var(--color-acento); color: #fff; }
 .auth-form { display: flex; flex-direction: column; gap: .9rem; text-align: left; }
 .auth-form[hidden] { display: none; }
 .auth-error { color: #E05B5B; font-size: .82rem; background: rgba(224,91,91,.1); border-radius: var(--radio-sm); padding: .5rem .7rem; }

@@ -61,6 +61,20 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------------
+    // configuracion/global  → { claveAccesoDueños }
+    // La clave de acceso para el registro público de dueños nuevos. Hace
+    // falta estar autenticado para leerla (igual que "codigosInvitacion"
+    // en el ecosistema de gimnasios): el flujo de registro primero crea
+    // la cuenta de Authentication y RECIÉN AHÍ, ya autenticado, valida la
+    // clave contra este documento. Si no coincide, se borra la cuenta
+    // recién creada (ver registrarDueño() en firebase-service.js).
+    // ------------------------------------------------------------------
+    match /configuracion/{doc} {
+      allow read: if estoyAutenticado();
+      allow write: if esSuperadmin();
+    }
+
+    // ------------------------------------------------------------------
     // productosKiosco/{id}  → { duenioId, codigoBarras, nombre, categoria,
     //                            precioCosto, precioVenta, stock,
     //                            stockMinimo, activo, actualizado }

@@ -37,6 +37,11 @@
     <h1 class="auth-titulo"><span data-marca="nombre"></span><strong data-marca="sufijo"></strong></h1>
     <p class="texto-suave auth-subtitulo">Panel de kiosco</p>
 
+    <div class="auth-tabs">
+      <button class="auth-tab auth-tab-activo" data-tab="login">Iniciar sesión</button>
+      <button class="auth-tab" data-tab="registro">Registrarme</button>
+    </div>
+
     <form id="form-login" class="auth-form">
       <label class="campo"><span>Email</span><input type="email" id="login-email" required autocomplete="username"></label>
       <label class="campo"><span>Contraseña</span><input type="password" id="login-password" required autocomplete="current-password"></label>
@@ -44,7 +49,16 @@
       <button type="submit" class="btn btn-primario btn-full">Entrar</button>
       <button type="button" class="btn btn-texto btn-full" id="btn-olvide-password">Olvidé mi contraseña</button>
     </form>
-    <p class="texto-suave texto-pequeno" style="margin-top:1rem">¿Todavía no tenés una cuenta? Pedísela a quien te dio de alta.</p>
+
+    <form id="form-registro" class="auth-form" hidden>
+      <label class="campo"><span>Nombre del negocio</span><input type="text" id="registro-negocio" required autocomplete="organization"></label>
+      <label class="campo"><span>Email</span><input type="email" id="registro-email" required autocomplete="username"></label>
+      <label class="campo"><span>Contraseña</span><input type="password" id="registro-password" required minlength="6" autocomplete="new-password"></label>
+      <p class="texto-suave texto-pequeno">Mínimo 6 caracteres.</p>
+      <label class="campo"><span>Clave de acceso</span><input type="text" id="registro-clave" autocomplete="off" placeholder="La que te compartieron"></label>
+      <p id="registro-error" class="auth-error" hidden></p>
+      <button type="submit" class="btn btn-primario btn-full">Crear mi cuenta</button>
+    </form>
   </div>
 </div>
 

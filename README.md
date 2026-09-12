@@ -24,20 +24,27 @@ a propósito del proyecto de los gimnasios para no compartir cuota de lecturas/e
 ### 🔑 Superadmin (Becker)
 
 Identificado por su email (`beckerlastrelaureano@gmail.com`), hardcodeado en
-`js/firebase-config.js`. No hay panel de administración de clientes todavía (eso es un "Kiosco
-Center" a futuro, si la línea de producto crece) — por ahora, dar de alta a un cliente nuevo es:
+`js/firebase-config.js`. Necesita su propia cuenta de Authentication con ese email exacto (se
+crea una sola vez, a mano, en Firebase Console → Authentication → Add user).
 
-1. Firebase Console → Authentication → **Add user** (email + contraseña temporal) → se la pasás
-   al cliente.
-2. Cuando esa persona loguea por primera vez, la app le pide el nombre de su negocio y le crea
-   sola su ficha de "dueño" en `usuariosKiosco`. No hace falta tocar Firestore a mano.
-3. Para suspender a un cliente que no pagó: editar a mano su documento en `usuariosKiosco` y
-   poner `activo: false`.
+Desde su panel puede ver y cambiar la **clave de acceso** (`configuracion/global`,
+campo `claveAccesoDueños`) que hace falta para que alguien se registre como dueño nuevo. No hace
+falta redeploy ni tocar la consola para cambiarla — es un campo de texto en la app.
+
+Para suspender a un cliente que no pagó: editar a mano su documento en `usuariosKiosco` (consola
+de Firestore) y poner `activo: false`.
 
 ### 🏪 Dueño
 
-Es cada kiosco cliente. Administra sus propios productos, empleados, turnos y ventas — nunca ve
-los de otro cliente (aislado por `duenioId == su uid` en `firestore.rules`).
+Es cada kiosco cliente. Se da de alta solo, desde la pestaña "Registrarme" de la app: nombre del
+negocio, email, contraseña, y la **clave de acceso** vigente (se la pasa Becker o quien venda la
+app). Si la clave no coincide, no se crea la cuenta. Administra sus propios productos, empleados,
+turnos y ventas — nunca ve los de otro dueño (aislado por `duenioId == su uid` en
+`firestore.rules`).
+
+Alternativa manual, sin clave: Becker puede crear la cuenta de Authentication directamente desde
+la consola (Add user); esa cuenta, al loguear por primera vez, entra sin pedir clave — es una
+puerta de entrada separada para cuando Becker quiere dar de alta a alguien él mismo.
 
 ### Empleados (sin cuenta de Authentication)
 
@@ -53,6 +60,7 @@ no se puede forzar por reglas sin darle una cuenta propia.
 ## Colecciones en Firestore
 
 ```
+configuracion/global   -> { claveAccesoDueños }
 usuariosKiosco/{uid}   -> { rol, email, nombreNegocio, activo, fechaAlta }
 productosKiosco/{id}   -> { duenioId, codigoBarras, nombre, categoria, precioCosto,
                              precioVenta, stock, stockMinimo, activo, actualizado }

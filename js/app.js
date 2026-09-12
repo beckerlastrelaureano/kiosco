@@ -75,6 +75,9 @@ const App = (() => {
 
   function traducirErrorFirebase(ex) {
     const c = ex.code || '';
+    if (c === 'app/clave-invalida') return ex.message;
+    if (c.includes('email-already-in-use')) return 'Ese email ya está registrado. Probá iniciar sesión.';
+    if (c.includes('weak-password')) return 'La contraseña necesita al menos 6 caracteres.';
     if (c.includes('user-not-found') || c.includes('wrong-password') || c.includes('invalid-credential')) return 'Email o contraseña incorrectos.';
     if (c.includes('invalid-email')) return 'El email no es válido.';
     if (c.includes('too-many-requests')) return 'Demasiados intentos. Probá de nuevo en un rato.';
@@ -117,13 +120,37 @@ const App = (() => {
   // =======================================================================
   // VISTA SUPERADMIN (mínima — la gestión de clientes es manual por ahora)
   // =======================================================================
-  function renderSuperadmin() {
-    $('#view-superadmin').innerHTML = `
+  async function renderSuperadmin() {
+    const cont = $('#view-superadmin');
+    cont.innerHTML = `<p class="texto-suave">Cargando...</p>`;
+    const claveActual = await FirebaseService.obtenerClaveAcceso();
+
+    cont.innerHTML = `
       <div class="vista-header"><h2>${icon('settings')} Superadmin</h2></div>
+
       <div class="panel">
-        <p>Por ahora, dar de alta un kiosco cliente nuevo es un paso manual en la consola de Firebase (Authentication → Add user). Cuando esa persona loguee por primera vez, la app le crea sola su ficha de "dueño".</p>
-        <p class="texto-suave texto-pequeno">Un panel tipo "Becker Center" para esta línea de producto es un paso futuro, cuando haya varios clientes kiosco activos.</p>
+        <div class="panel-header-flex"><h3 style="margin:0">Clave de acceso para dueños nuevos</h3></div>
+        <p class="texto-suave texto-pequeno" style="margin-bottom:.9rem">Cualquiera que tenga el link de esta app y esta clave puede registrarse como dueño de su propio kiosco. Cambiala cuando quieras — no hace falta tocar la consola de Firebase ni volver a subir código.</p>
+        <div class="campo-fila" style="align-items:end">
+          <label class="campo" style="margin-bottom:0"><span>Clave actual</span><input type="text" id="input-clave-acceso" value="${escapeHtml(claveActual)}" placeholder="ej: kiosco2026"></label>
+          <button class="btn btn-primario" id="btn-guardar-clave" style="height:fit-content">${icon('save')} Guardar</button>
+        </div>
+        ${!claveActual ? `<p class="auth-error" style="margin-top:.8rem">Todavía no hay ninguna clave configurada — nadie se puede registrar hasta que pongas una acá.</p>` : ''}
+      </div>
+
+      <div class="panel">
+        <p class="texto-suave texto-pequeno">Alternativa manual, sin usar la clave: Firebase Console → Authentication → Add user. Esa cuenta entra directo sin pedir clave la primera vez que loguea.</p>
       </div>`;
+
+    $('#btn-guardar-clave').addEventListener('click', async () => {
+      const nueva = $('#input-clave-acceso').value.trim();
+      if (!nueva) { toast('Poné una clave antes de guardar.', 'error'); return; }
+      try {
+        await FirebaseService.actualizarClaveAcceso(nueva);
+        toast('Clave actualizada.', 'exito');
+        renderSuperadmin();
+      } catch (ex) { toast(traducirErrorFirebase(ex), 'error'); }
+    });
   }
 
   // =======================================================================
@@ -706,6 +733,29 @@ const App = (() => {
   // AUTENTICACIÓN
   // =======================================================================
   function initAuthUI() {
+    $$('.auth-tab').forEach(tab => tab.addEventListener('click', () => {
+      $$('.auth-tab').forEach(t => t.classList.remove('auth-tab-activo'));
+      tab.classList.add('auth-tab-activo');
+      $('#form-login').hidden = tab.dataset.tab !== 'login';
+      $('#form-registro').hidden = tab.dataset.tab !== 'registro';
+    }));
+
+    $('#form-registro').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = $('#registro-error'); err.hidden = true;
+      try {
+        const usuario = await FirebaseService.registrarDueño({
+          nombreNegocio: $('#registro-negocio').value.trim(),
+          email: $('#registro-email').value.trim(),
+          password: $('#registro-password').value,
+          clave: $('#registro-clave').value
+        });
+        await entrarConUsuario(usuario);
+      } catch (ex) {
+        err.textContent = traducirErrorFirebase(ex); err.hidden = false;
+      }
+    });
+
     $('#form-login').addEventListener('submit', async (e) => {
       e.preventDefault();
       const err = $('#login-error'); err.hidden = true;

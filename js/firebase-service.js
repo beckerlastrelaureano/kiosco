@@ -84,9 +84,51 @@ const FirebaseService = (() => {
     return resolverUsuario(cred.user);
   }
 
+  // ---------------------------------------------------------------------
+  // Clave de acceso para el registro público de dueños (configuracion/global)
+  // ---------------------------------------------------------------------
+  async function obtenerClaveAcceso() {
+    const doc = await db.collection('configuracion').doc('global').get();
+    return doc.exists ? (doc.data().claveAccesoDueños || '') : '';
+  }
+
+  function actualizarClaveAcceso(nuevaClave) {
+    return db.collection('configuracion').doc('global').set({ claveAccesoDueños: nuevaClave.trim() }, { merge: true });
+  }
+
+  // Registro público de un dueño nuevo, con clave de acceso (no requiere
+  // que Becker cree la cuenta a mano en la consola). Mismo criterio que
+  // "codigosInvitacion" en el ecosistema de gimnasios: primero se crea el
+  // login de Firebase Auth, y RECIÉN autenticado se puede leer la clave
+  // real desde Firestore para compararla. Si no coincide, se borra el
+  // login recién creado para no dejar una cuenta fantasma.
+  async function registrarDueño({ nombreNegocio, email, password, clave }) {
+    const cred = await auth.createUserWithEmailAndPassword(email, password);
+    try {
+      const claveReal = await obtenerClaveAcceso();
+      if (!claveReal || (clave || '').trim() !== claveReal) {
+        const err = new Error('La clave de acceso no es correcta. Pedísela a quien te compartió el link.');
+        err.code = 'app/clave-invalida';
+        throw err;
+      }
+      const datos = {
+        rol: 'dueño', email,
+        nombreNegocio: (nombreNegocio || '').trim() || 'Mi kiosco',
+        activo: true, fechaAlta: new Date().toISOString()
+      };
+      await db.collection('usuariosKiosco').doc(cred.user.uid).set(datos);
+      usuarioActual = { uid: cred.user.uid, ...datos };
+      return usuarioActual;
+    } catch (err) {
+      await cred.user.delete().catch(() => {});
+      throw err;
+    }
+  }
+
   // Se llama una sola vez, después de que resolverUsuario() devuelve
-  // sinPerfil:true — crea la ficha de "dueño" con el nombre del negocio
-  // que acaba de completar en la app.
+  // sinPerfil:true — pasa solo con cuentas que Becker creó a mano en la
+  // consola de Authentication (sin pasar por el registro público), y por
+  // eso no pide clave: esa cuenta ya es de por sí una decisión de Becker.
   async function completarAltaDueño(nombreNegocio) {
     const user = auth.currentUser;
     if (!user) throw new Error('Se perdió la sesión, volvé a intentar.');
@@ -258,7 +300,8 @@ const FirebaseService = (() => {
 
   return {
     init, configurado,
-    onCambioSesion, iniciarSesion, completarAltaDueño, cerrarSesion, recuperarContrasena, getUsuarioActual,
+    onCambioSesion, iniciarSesion, registrarDueño, completarAltaDueño, cerrarSesion, recuperarContrasena, getUsuarioActual,
+    obtenerClaveAcceso, actualizarClaveAcceso,
     listarProductos, crearProducto, actualizarProducto, eliminarProducto,
     listarEmpleados, crearEmpleado, actualizarEmpleado, eliminarEmpleado,
     getTurnoAbierto, abrirTurno, cerrarTurno, listarTurnos,
